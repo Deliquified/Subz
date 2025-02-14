@@ -143,24 +143,25 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
       });
 
       // Wait for deployment
-      await new Promise(resolve => setTimeout(resolve, 7000));
+      setTimeout(async () => {
+        // Query factory contract for latest deployment
+        const rpcProvider = new ethers.providers.JsonRpcProvider('https://42.rpc.thirdweb.com');
+        const factoryContract = new ethers.Contract(FACTORY_ADDRESS, FactoryABI, rpcProvider);
+        const subscriptions = await factoryContract.getCreatorSubscriptions(account);
+        
+        if (subscriptions.length > 0) {
+          const latestContract = subscriptions[subscriptions.length - 1];
+          setDeployedContract(latestContract);
+        }
+        setDeploymentPhase('tiers');
+        toast({
+          title: "Success!",
+          description: "Contract deployed. Now add your subscription tiers.",
+          variant: "default",
+        });
+        setIsCreatingContract(false);
+      }, 7000);
       
-      // Query factory contract for latest deployment
-      const rpcProvider = new ethers.providers.JsonRpcProvider('https://42.rpc.thirdweb.com');
-      const factoryContract = new ethers.Contract(FACTORY_ADDRESS, FactoryABI, rpcProvider);
-      const subscriptions = await factoryContract.getCreatorSubscriptions(account);
-      
-      if (subscriptions.length > 0) {
-        const latestContract = subscriptions[subscriptions.length - 1];
-        setDeployedContract(latestContract);
-      }
-
-      setDeploymentPhase('tiers');
-      toast({
-        title: "Success!",
-        description: "Contract deployed. Now add your subscription tiers.",
-        variant: "default",
-      });
     } catch (error) {
       console.error("Error creating subscription:", error);
       setDeploymentStatus('idle');
@@ -169,8 +170,6 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
         description: "Failed to create subscription. Please try again.",
         variant: "destructive",
       });
-    } finally {
-      setIsCreatingContract(false);
     }
   };
 
