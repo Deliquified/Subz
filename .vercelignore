@@ -1,0 +1,4 @@
+{
+  "ignoreCommand": "!lsp8-contracts/**",
+  "buildCommand": "next build"
+}
