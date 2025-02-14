@@ -7,7 +7,7 @@ import FactoryABI from '../json/Factory.json';
 import SubscriptionABI from '../json/Subscription.json';
 import { keccak256, toUtf8Bytes } from 'ethers/lib/utils';
 
-const LUKSO_RPC = 'https://42.rpc.thirdweb.com';
+const LUKSO_RPC = 'https://lukso.nownodes.io/3eae6d25-6bbb-4de1-a684-9f40dcc3f793';
 const FACTORY_ADDRESS = "0x4170CBC17BF719307406787654336220d14980d4";
 
 interface SubscriptionTier {

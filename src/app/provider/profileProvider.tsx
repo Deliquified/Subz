@@ -5,7 +5,7 @@ import { ERC725 } from '@erc725/erc725.js';
 import erc725schema from '@erc725/erc725.js/schemas/LSP3ProfileMetadata.json';
 import { useUpProvider } from "../upProvider";
 
-const RPC_ENDPOINT = 'https://42.rpc.thirdweb.com';
+const RPC_ENDPOINT = 'https://lukso.nownodes.io/3eae6d25-6bbb-4de1-a684-9f40dcc3f793';
 const IPFS_GATEWAY = 'https://api.universalprofile.cloud/ipfs';
 
 interface ProfileData {

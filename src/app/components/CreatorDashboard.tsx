@@ -149,7 +149,7 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
       await new Promise(resolve => setTimeout(resolve, 15000));
 
       // Query factory contract for latest deployment
-      const rpcProvider = new ethers.providers.JsonRpcProvider('https://42.rpc.thirdweb.com');
+      const rpcProvider = new ethers.providers.JsonRpcProvider('https://lukso.nownodes.io/3eae6d25-6bbb-4de1-a684-9f40dcc3f793');
       const factoryContract = new ethers.Contract(FACTORY_ADDRESS, FactoryABI, rpcProvider);
       const subscriptions = await factoryContract.getCreatorSubscriptions(account);
       

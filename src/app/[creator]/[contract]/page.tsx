@@ -78,7 +78,7 @@ export default function SubscriptionPage() {
       const profile = new ERC725(
         LSP3ProfileSchema as ERC725JSONSchema[], 
         creator as string, 
-        'https://42.rpc.thirdweb.com', 
+        'https://lukso.nownodes.io/3eae6d25-6bbb-4de1-a684-9f40dcc3f793',
         { ipfsGateway: 'https://api.universalprofile.cloud/ipfs' }
       );
 
@@ -99,7 +99,7 @@ export default function SubscriptionPage() {
 
   const loadContractData = async () => {
     try {
-      const rpcProvider = new ethers.providers.JsonRpcProvider('https://42.rpc.thirdweb.com');
+      const rpcProvider = new ethers.providers.JsonRpcProvider('https://lukso.nownodes.io/3eae6d25-6bbb-4de1-a684-9f40dcc3f793');
       const subscriptionContract = new ethers.Contract(contract as string, SubscriptionABI, rpcProvider);
       
       const totalTiers = await subscriptionContract.totalTiers();
@@ -137,7 +137,7 @@ export default function SubscriptionPage() {
 
   const checkSubscriptionStatus = async () => {
     try {
-      const rpcProvider = new ethers.providers.JsonRpcProvider('https://42.rpc.thirdweb.com');
+      const rpcProvider = new ethers.providers.JsonRpcProvider('https://lukso.nownodes.io/3eae6d25-6bbb-4de1-a684-9f40dcc3f793');
       const subscriptionContract = new ethers.Contract(contract as string, SubscriptionABI, rpcProvider);
       
       const subscriber = await subscriptionContract.subscribers(accounts[0]);
@@ -166,7 +166,7 @@ export default function SubscriptionPage() {
     
     setIsApproving(true);
     try {
-      const rpcProvider = new ethers.providers.JsonRpcProvider('https://42.rpc.thirdweb.com');
+      const rpcProvider = new ethers.providers.JsonRpcProvider('https://lukso.nownodes.io/3eae6d25-6bbb-4de1-a684-9f40dcc3f793');
       const subscriptionContract = new ethers.Contract(contract as string, SubscriptionABI, rpcProvider);
       const tokenAddress = await subscriptionContract.paymentToken();
 
