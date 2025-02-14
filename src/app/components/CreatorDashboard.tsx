@@ -124,29 +124,12 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
 
   const createSubscriptionContract = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!provider || !account) {
-      toast({
-        title: "Error",
-        description: "Please connect your wallet first",
-        variant: "destructive",
-      });
-      return;
-    }
+    if (!provider || !account) return;
 
     setIsCreatingContract(true);
     setDeploymentStatus('deploying');
     
     try {
-      // Validate selected token
-      if (!selectedToken || !selectedToken.address) {
-        throw new Error("No token selected");
-      }
-
-      // Validate contract name
-      if (!newContractForm.name) {
-        throw new Error("Contract name is required");
-      }
-
       const tx = await client.writeContract({
         account: account,
         address: FACTORY_ADDRESS,
@@ -155,53 +138,35 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
         args: [
           newContractForm.name,
           account,
-          selectedToken.address
+          selectedToken.address //"0x1C08D5127CFD0674D16De0d2da482bdb950675FB" //
         ]
       });
 
-      if (!tx) {
-        throw new Error("Transaction failed");
+      // Wait for deployment
+      await new Promise(resolve => setTimeout(resolve, 7000));
+      
+      // Query factory contract for latest deployment
+      const rpcProvider = new ethers.providers.JsonRpcProvider('https://42.rpc.thirdweb.com');
+      const factoryContract = new ethers.Contract(FACTORY_ADDRESS, FactoryABI, rpcProvider);
+      const subscriptions = await factoryContract.getCreatorSubscriptions(account);
+      
+      if (subscriptions.length > 0) {
+        const latestContract = subscriptions[subscriptions.length - 1];
+        setDeployedContract(latestContract);
       }
 
-      // Wait for deployment with timeout
-      let attempts = 0;
-      const maxAttempts = 10;
-      while (attempts < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds between checks
-        
-        try {
-          // Query factory contract for latest deployment
-          const rpcProvider = new ethers.providers.JsonRpcProvider('https://42.rpc.thirdweb.com');
-          const factoryContract = new ethers.Contract(FACTORY_ADDRESS, FactoryABI, rpcProvider);
-          const subscriptions = await factoryContract.getCreatorSubscriptions(account);
-          
-          if (subscriptions.length > 0) {
-            const latestContract = subscriptions[subscriptions.length - 1];
-            setDeployedContract(latestContract);
-            setDeploymentPhase('tiers');
-            toast({
-              title: "Success!",
-              description: "Contract deployed. Now add your subscription tiers.",
-              variant: "default",
-            });
-            return; // Exit the loop on success
-          }
-        } catch (error) {
-          console.error("Error checking deployment:", error);
-        }
-        
-        attempts++;
-      }
-      
-      // If we get here, deployment verification failed
-      throw new Error("Contract deployment verification timed out");
-      
+      setDeploymentPhase('tiers');
+      toast({
+        title: "Success!",
+        description: "Contract deployed. Now add your subscription tiers.",
+        variant: "default",
+      });
     } catch (error) {
       console.error("Error creating subscription:", error);
       setDeploymentStatus('idle');
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create subscription. Please try again.",
+        description: "Failed to create subscription. Please try again.",
         variant: "destructive",
       });
     } finally {
