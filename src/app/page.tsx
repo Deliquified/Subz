@@ -30,6 +30,7 @@ export default function Home() {
 
       // Create contract deployment transaction
       const deploymentTransaction = {
+        account: accounts[0],
         from: accounts[0],
         data: LSP8.bytecode as `0x${string}`,
         chain: client.chain

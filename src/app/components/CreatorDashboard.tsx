@@ -79,7 +79,7 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
   const [deploymentStatus, setDeploymentStatus] = useState<'idle' | 'deploying' | 'success'>('idle');
   const [countdown, setCountdown] = useState(2);
 
-  const FACTORY_ADDRESS = "0x1F4aa0a6eC5ec3c21FBabcb6aAD6e3dE45775c7a";
+  const FACTORY_ADDRESS = "0x4170CBC17BF719307406787654336220d14980d4";
 
   const { profileData, isLoading } = useProfile();
   const { accounts } = useUpProvider();
@@ -138,7 +138,7 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
         args: [
           newContractForm.name,
           account,
-          "0x1C08D5127CFD0674D16De0d2da482bdb950675FB" //selectedToken.address
+          selectedToken.address //"0x1C08D5127CFD0674D16De0d2da482bdb950675FB" //
         ]
       });
 
@@ -146,7 +146,7 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
       await new Promise(resolve => setTimeout(resolve, 15000));
       
       // Query factory contract for latest deployment
-      const rpcProvider = new ethers.providers.JsonRpcProvider('https://rpc.testnet.lukso.network');
+      const rpcProvider = new ethers.providers.JsonRpcProvider('https://42.rpc.thirdweb.com');
       const factoryContract = new ethers.Contract(FACTORY_ADDRESS, FactoryABI, rpcProvider);
       const subscriptions = await factoryContract.getCreatorSubscriptions(account);
       

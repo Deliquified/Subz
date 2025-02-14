@@ -7,8 +7,8 @@ import FactoryABI from '../json/Factory.json';
 import SubscriptionABI from '../json/Subscription.json';
 import { keccak256, toUtf8Bytes } from 'ethers/lib/utils';
 
-const LUKSO_RPC = 'https://rpc.testnet.lukso.network';
-const FACTORY_ADDRESS = "0x1F4aa0a6eC5ec3c21FBabcb6aAD6e3dE45775c7a";
+const LUKSO_RPC = 'https://42.rpc.thirdweb.com';
+const FACTORY_ADDRESS = "0x4170CBC17BF719307406787654336220d14980d4";
 
 interface SubscriptionTier {
   name: string;
