@@ -130,7 +130,7 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
     setDeploymentStatus('deploying');
     
     try {
-      const tx = await client.writeContract({
+      await client.writeContract({
         account: account,
         address: FACTORY_ADDRESS,
         abi: FactoryABI,
