@@ -94,12 +94,12 @@ export default function Home() {
   return (
     <div className="w-full h-full">
       <CreatorDashboard account={accounts[0]} provider={provider} client={client} />
-      <Button 
+      {/*<Button 
         onClick={() => deploy()} 
         disabled={isDeploying}
       >
         {isDeploying ? "Deploying..." : "Deploy Contract"}
-      </Button>
+      </Button>*/}
     </div>
   );
 }
