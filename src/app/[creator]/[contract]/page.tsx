@@ -180,7 +180,8 @@ export default function SubscriptionPage() {
         '0x'
       ]);
 
-      await client.writeContract({
+      // Fire and forget the transaction
+      client.writeContract({
         account: accounts[0],
         address: accounts[0],
         abi: UniversalProfileArtifacts.abi,
@@ -193,26 +194,13 @@ export default function SubscriptionPage() {
         ]
       });
 
-      // Start countdown from 10
-      setCountdown(10);
-      
-      // Create countdown interval
-      const timer = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev === 1) {
-            clearInterval(timer);
-            setIsApproved(true);
-            setCountdown(null);
-            toast({
-              title: "Success!",
-              description: "Authorization completed. You can now subscribe!",
-              variant: "default",
-            });
-            return null;
-          }
-          return prev ? prev - 1 : null;
-        });
-      }, 1000);
+      // Immediately set as approved
+      setIsApproved(true);
+      toast({
+        title: "Transaction Sent",
+        description: "Please confirm the transaction in your wallet",
+        variant: "default",
+      });
 
     } catch (error) {
       console.error('Error approving:', error);
@@ -221,7 +209,6 @@ export default function SubscriptionPage() {
         description: "Failed to authorize. Please try again.",
         variant: "destructive",
       });
-      setCountdown(null);
     } finally {
       setIsApproving(false);
     }
@@ -240,8 +227,8 @@ export default function SubscriptionPage() {
         selectedTier
       ]);
 
-      console.log(contract)
-      await client.writeContract({
+      // Fire and forget the transaction
+      client.writeContract({
         account: accounts[0],
         address: accounts[0],
         abi: UniversalProfileArtifacts.abi,
@@ -254,22 +241,13 @@ export default function SubscriptionPage() {
         ]
       });
 
-      // Start countdown from 10
-      setCountdown(10);
-      
-      // Create countdown interval
-      const timer = setInterval(async () => {
-        setCountdown((prev) => {
-          if (prev === 1) {
-            clearInterval(timer);
-            setCountdown(null);
-            setShowSuccess(true);
-            checkSubscriptionStatus();
-            return null;
-          }
-          return prev ? prev - 1 : null;
-        });
-      }, 1000);
+      // Immediately show success
+      setShowSuccess(true);
+      toast({
+        title: "Transaction Sent",
+        description: "Please confirm the transaction in your wallet",
+        variant: "default",
+      });
 
     } catch (error) {
       console.error('Error subscribing:', error);
@@ -278,7 +256,6 @@ export default function SubscriptionPage() {
         description: "Failed to subscribe. Please try again.",
         variant: "destructive",
       });
-      setCountdown(null);
     } finally {
       setSubscribing(false);
     }

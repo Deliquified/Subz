@@ -74,8 +74,6 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
   const [subscriptionTiers, setSubscriptionTiers] = useState<SubscriptionTier[]>([]);
   const [newTier, setNewTier] = useState<SubscriptionTier>({ name: '', price: '' });
 
-  const [creationStep, setCreationStep] = useState<'details' | 'tiers'>('details');
-
   const [deploymentStatus, setDeploymentStatus] = useState<'idle' | 'deploying' | 'success'>('idle');
   const [countdown, setCountdown] = useState(2);
 
@@ -89,7 +87,6 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
   const [selectedToken, setSelectedToken] = useState<Token>(SUPPORTED_TOKENS[0]);
 
   // Add these to existing state declarations
-  const [deploymentPhase, setDeploymentPhase] = useState<'details' | 'tiers' | 'complete'>('details');
   const [deployedContract, setDeployedContract] = useState<string | null>(null);
 
   // Reset states when switching views
@@ -98,7 +95,6 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
       setNewContractForm({ name: '', stablecoin: '' });
       setSubscriptionTiers([]);
       setNewTier({ name: '', price: '' });
-      setCreationStep('details');
       setDeploymentStatus('idle');
     }
   }, [activeView]);
@@ -124,13 +120,14 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
 
   const createSubscriptionContract = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!provider || !account) return;
+    if (!provider || !account || !subscriptionTiers.length) return;
 
     setIsCreatingContract(true);
     setDeploymentStatus('deploying');
     
     try {
-      await client.writeContract({
+      // First transaction - deploy contract
+      client.writeContract({
         account: account,
         address: FACTORY_ADDRESS,
         abi: FactoryABI,
@@ -138,9 +135,18 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
         args: [
           newContractForm.name,
           account,
-          selectedToken.address //"0x1C08D5127CFD0674D16De0d2da482bdb950675FB" //
+          selectedToken.address
         ]
       });
+      
+      toast({
+        title: "Deploying Contract",
+        description: "Please wait while we deploy your contract...",
+        variant: "default",
+      });
+
+      // Wait 10 seconds before querying
+      await new Promise(resolve => setTimeout(resolve, 10000));
 
       // Query factory contract for latest deployment
       const rpcProvider = new ethers.providers.JsonRpcProvider('https://42.rpc.thirdweb.com');
@@ -148,20 +154,43 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
       const subscriptions = await factoryContract.getCreatorSubscriptions(account);
       
       if (subscriptions.length > 0) {
-        const latestContract = subscriptions[subscriptions.length - 1];
-        setDeployedContract(latestContract);
+        const deployedContract = subscriptions[subscriptions.length - 1];
+        
+        // Create tiers
+        for (const tier of subscriptionTiers) {
+          const price = ethers.utils.parseUnits(tier.price, 18);
+          await client.writeContract({
+            account: account,
+            address: deployedContract,
+            abi: SubscriptionABI,
+            functionName: 'createTier',
+            args: [tier.name, price]
+          });
+        }
+
+        toast({
+          title: "Success!",
+          description: "Contract deployed and tiers created successfully.",
+          variant: "default",
+        });
+
+        // Reset and return to manage view
+        setDeploymentStatus('success');
+        setTimeout(() => {
+          setActiveView('manage');
+          refreshContracts();
+          setIsCreatingContract(false);
+          setNewContractForm({ name: '', stablecoin: '' });
+          setSubscriptionTiers([]);
+          setNewTier({ name: '', price: '' });
+          setSelectedToken(SUPPORTED_TOKENS[0]);
+        }, 2000);
       }
-      setDeploymentPhase('tiers');
-      toast({
-        title: "Success!",
-        description: "Contract deployed. Now add your subscription tiers.",
-        variant: "default",
-      });
-      setIsCreatingContract(false);
       
     } catch (error) {
       console.error("Error creating subscription:", error);
       setDeploymentStatus('idle');
+      setIsCreatingContract(false);
       toast({
         title: "Error",
         description: "Failed to create subscription. Please try again.",
@@ -182,35 +211,6 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
     setSubscriptionTiers(subscriptionTiers.filter((_, i) => i !== index));
   };
 
-  const createTier = async (tier: SubscriptionTier) => {
-    if (!deployedContract || !account) return;
-
-    try {
-      const price = ethers.utils.parseUnits(tier.price, 18);
-      
-      await client.writeContract({
-        account: account,
-        address: deployedContract,
-        abi: SubscriptionABI,
-        functionName: 'createTier',
-        args: [tier.name, price]
-      });
-
-      toast({
-        title: "Success!",
-        description: `Tier "${tier.name}" created successfully.`,
-        variant: "default",
-      });
-    } catch (error) {
-      console.error("Error creating tier:", error);
-      toast({
-        title: "Error",
-        description: "Failed to create tier. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
   if (isLoadingSubscriptions) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;
 
@@ -227,71 +227,59 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
               ← Back to Dashboard
             </Button>
 
-            {deploymentPhase === 'details' ? (
-              <form onSubmit={createSubscriptionContract}>
-                <div className="space-y-6">
-                  <div>
-                    <label className="text-sm font-medium">Subscription Name</label>
-                    <Input
-                      value={newContractForm.name}
-                      onChange={(e) => setNewContractForm({...newContractForm, name: e.target.value})}
-                      placeholder="Enter Subscription Name"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="text-sm font-medium">Select Token</label>
-                    <Select
-                      value={selectedToken.address}
-                      onValueChange={(value) => {
-                        const token = SUPPORTED_TOKENS.find(t => t.address === value);
-                        if (token) setSelectedToken(token);
-                      }}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue>
+            <form onSubmit={createSubscriptionContract}>
+              <div className="space-y-6">
+                <div>
+                  <label className="text-sm font-medium">Subscription Name</label>
+                  <Input
+                    value={newContractForm.name}
+                    onChange={(e) => setNewContractForm({...newContractForm, name: e.target.value})}
+                    placeholder="Enter Subscription Name"
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium">Select Token</label>
+                  <Select
+                    value={selectedToken.address}
+                    onValueChange={(value) => {
+                      const token = SUPPORTED_TOKENS.find(t => t.address === value);
+                      if (token) setSelectedToken(token);
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue>
+                        <div className="flex items-center gap-2">
+                          <Image
+                            src={selectedToken.icon}
+                            alt={selectedToken.name}
+                            width={24}
+                            height={24}
+                            className="rounded-full"
+                          />
+                          {selectedToken.name}
+                        </div>
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SUPPORTED_TOKENS.map((token) => (
+                        <SelectItem key={token.address} value={token.address}>
                           <div className="flex items-center gap-2">
                             <Image
-                              src={selectedToken.icon}
-                              alt={selectedToken.name}
+                              src={token.icon}
+                              alt={token.name}
                               width={24}
                               height={24}
                               className="rounded-full"
                             />
-                            {selectedToken.name}
+                            {token.name}
                           </div>
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {SUPPORTED_TOKENS.map((token) => (
-                          <SelectItem key={token.address} value={token.address}>
-                            <div className="flex items-center gap-2">
-                              <Image
-                                src={token.icon}
-                                alt={token.name}
-                                width={24}
-                                height={24}
-                                className="rounded-full"
-                              />
-                              {token.name}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <Button 
-                    type="submit"
-                    disabled={isCreatingContract || !newContractForm.name}
-                    className="w-full"
-                  >
-                    {isCreatingContract ? "Creating Contract..." : "Create Contract"}
-                  </Button>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              </form>
-            ) : deploymentPhase === 'tiers' ? (
-              <div className="space-y-6">
+
                 <div>
                   <label className="text-sm font-medium">Add Subscription Tiers</label>
                   <div className="mt-2 space-y-4">
@@ -310,11 +298,8 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
                         className="w-48"
                       />
                       <Button 
-                        onClick={() => {
-                          createTier(newTier);
-                          setSubscriptionTiers([...subscriptionTiers, newTier]);
-                          setNewTier({ name: '', price: '' });
-                        }}
+                        type="button"
+                        onClick={addTier}
                         disabled={!newTier.name || !newTier.price || subscriptionTiers.length >= 3}
                       >
                         Add Tier
@@ -345,27 +330,14 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
                 </div>
 
                 <Button 
-                  onClick={() => {
-                    // Reset all creation-related states
-                    setDeploymentPhase('details');
-                    setDeployedContract(null);
-                    setNewContractForm({ name: '', stablecoin: '' });
-                    setSubscriptionTiers([]);
-                    setNewTier({ name: '', price: '' });
-                    setSelectedToken(SUPPORTED_TOKENS[0]);
-                    setDeploymentStatus('idle');
-                    
-                    // Switch view and refresh contracts
-                    setActiveView('manage');
-                    refreshContracts();
-                  }}
-                  disabled={subscriptionTiers.length === 0}
-                  className="w-full mt-6"
+                  type="submit"
+                  disabled={isCreatingContract || !newContractForm.name || subscriptionTiers.length === 0}
+                  className="w-full"
                 >
-                  Complete Setup
+                  {isCreatingContract ? "Creating Subscription..." : "Create Subscription"}
                 </Button>
               </div>
-            ) : null}
+            </form>
           </div>
         </div>
       ) : (
@@ -498,7 +470,7 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
                                     onClick={() => {
                                       // Create temporary input element
                                       const tempInput = document.createElement('input');
-                                      const url = `${window.location.origin}/${account}/${sub.address}`;
+                                      const url = `https://subz-two.vercel.app/${account}/${sub.address}`;
                                       tempInput.value = url;
                                       document.body.appendChild(tempInput);
                                       
