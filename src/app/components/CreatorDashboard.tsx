@@ -5,6 +5,7 @@ import { ethers } from 'ethers';
 import FactoryABI from '../json/Factory.json';
 import SubscriptionABI from '../json/Subscription.json';
 import { motion } from "framer-motion";
+
 import {
   Card,
   CardContent,
@@ -15,7 +16,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LogOut, Plus, Users } from "lucide-react";
+import { LogOut, Plus, Users, Copy } from "lucide-react";
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useProfile } from '../provider/profileProvider';
@@ -29,6 +30,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useUpProvider } from '../upProvider';
+import { SUPPORTED_TOKENS, Token } from "../types/tokens";
+import Image from "next/image";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface CreatorDashboardProps {
   account: string | null;
@@ -39,6 +50,14 @@ interface CreatorDashboardProps {
 interface SubscriptionTier {
   name: string;
   price: string;
+}
+
+interface Subscription {
+  contractAddress: string;
+  name: string;
+  blockNumber: number;
+  timestamp: number;
+  transactionHash: string;
 }
 
 export default function CreatorDashboard({ account, provider, client }: CreatorDashboardProps) {
@@ -55,14 +74,23 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
   const [subscriptionTiers, setSubscriptionTiers] = useState<SubscriptionTier[]>([]);
   const [newTier, setNewTier] = useState<SubscriptionTier>({ name: '', price: '' });
 
-  const [createStep, setCreateStep] = useState<'details' | 'tiers'>('details');
+  const [creationStep, setCreationStep] = useState<'details' | 'tiers'>('details');
 
   const [deploymentStatus, setDeploymentStatus] = useState<'idle' | 'deploying' | 'success'>('idle');
   const [countdown, setCountdown] = useState(2);
 
-  const FACTORY_ADDRESS = "0xe861e6A7267Be14aC701e342fcf34e5D1F9e2AF0";
+  const FACTORY_ADDRESS = "0x1F4aa0a6eC5ec3c21FBabcb6aAD6e3dE45775c7a";
 
   const { profileData, isLoading } = useProfile();
+  const { accounts } = useUpProvider();
+  const [isLoadingSubscriptions, setIsLoadingSubscriptions] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [selectedToken, setSelectedToken] = useState<Token>(SUPPORTED_TOKENS[0]);
+
+  // Add these to existing state declarations
+  const [deploymentPhase, setDeploymentPhase] = useState<'details' | 'tiers' | 'complete'>('details');
+  const [deployedContract, setDeployedContract] = useState<string | null>(null);
 
   // Reset states when switching views
   useEffect(() => {
@@ -70,7 +98,7 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
       setNewContractForm({ name: '', stablecoin: '' });
       setSubscriptionTiers([]);
       setNewTier({ name: '', price: '' });
-      setCreateStep('details');
+      setCreationStep('details');
       setDeploymentStatus('idle');
     }
   }, [activeView]);
@@ -97,12 +125,12 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
   const createSubscriptionContract = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!provider || !account) return;
-  
+
     setIsCreatingContract(true);
     setDeploymentStatus('deploying');
     
     try {
-      const tx = await provider.writeContract({
+      const tx = await client.writeContract({
         account: account,
         address: FACTORY_ADDRESS,
         abi: FactoryABI,
@@ -110,19 +138,25 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
         args: [
           newContractForm.name,
           account,
-          "0x1C08D5127CFD0674D16De0d2da482bdb950675FB"
+          "0x1C08D5127CFD0674D16De0d2da482bdb950675FB" //selectedToken.address
         ]
       });
 
-      // Simulate deployment time
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Wait for deployment
+      await new Promise(resolve => setTimeout(resolve, 15000));
       
-      if (tx) {
-        setDeploymentStatus('success');
-        await refreshContracts();
+      // Query factory contract for latest deployment
+      const rpcProvider = new ethers.providers.JsonRpcProvider('https://rpc.testnet.lukso.network');
+      const factoryContract = new ethers.Contract(FACTORY_ADDRESS, FactoryABI, rpcProvider);
+      const subscriptions = await factoryContract.getCreatorSubscriptions(account);
+      
+      if (subscriptions.length > 0) {
+        const latestContract = subscriptions[subscriptions.length - 1];
+        setDeployedContract(latestContract);
+        setDeploymentPhase('tiers');
         toast({
           title: "Success!",
-          description: "Your subscription contract has been deployed.",
+          description: "Contract deployed. Now add your subscription tiers.",
           variant: "default",
         });
       }
@@ -151,6 +185,38 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
     setSubscriptionTiers(subscriptionTiers.filter((_, i) => i !== index));
   };
 
+  const createTier = async (tier: SubscriptionTier) => {
+    if (!deployedContract || !account) return;
+
+    try {
+      const price = ethers.utils.parseUnits(tier.price, 18);
+      
+      await client.writeContract({
+        account: account,
+        address: deployedContract,
+        abi: SubscriptionABI,
+        functionName: 'createTier',
+        args: [tier.name, price]
+      });
+
+      toast({
+        title: "Success!",
+        description: `Tier "${tier.name}" created successfully.`,
+        variant: "default",
+      });
+    } catch (error) {
+      console.error("Error creating tier:", error);
+      toast({
+        title: "Error",
+        description: "Failed to create tier. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  if (isLoadingSubscriptions) return <div>Loading...</div>;
+  if (error) return <div>Error: {error}</div>;
+
   return (
     <>
       {activeView === 'create' ? (
@@ -164,125 +230,145 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
               ← Back to Dashboard
             </Button>
 
-            {createStep === 'details' ? (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Create New Subscription</CardTitle>
-                  <CardDescription>Define your subscription tiers and prices</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="text-sm font-medium">Subscription Name</label>
+            {deploymentPhase === 'details' ? (
+              <form onSubmit={createSubscriptionContract}>
+                <div className="space-y-6">
+                  <div>
+                    <label className="text-sm font-medium">Subscription Name</label>
+                    <Input
+                      value={newContractForm.name}
+                      onChange={(e) => setNewContractForm({...newContractForm, name: e.target.value})}
+                      placeholder="Enter Subscription Name"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="text-sm font-medium">Select Token</label>
+                    <Select
+                      value={selectedToken.address}
+                      onValueChange={(value) => {
+                        const token = SUPPORTED_TOKENS.find(t => t.address === value);
+                        if (token) setSelectedToken(token);
+                      }}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue>
+                          <div className="flex items-center gap-2">
+                            <Image
+                              src={selectedToken.icon}
+                              alt={selectedToken.name}
+                              width={24}
+                              height={24}
+                              className="rounded-full"
+                            />
+                            {selectedToken.name}
+                          </div>
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SUPPORTED_TOKENS.map((token) => (
+                          <SelectItem key={token.address} value={token.address}>
+                            <div className="flex items-center gap-2">
+                              <Image
+                                src={token.icon}
+                                alt={token.name}
+                                width={24}
+                                height={24}
+                                className="rounded-full"
+                              />
+                              {token.name}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <Button 
+                    type="submit"
+                    disabled={isCreatingContract || !newContractForm.name}
+                    className="w-full"
+                  >
+                    {isCreatingContract ? "Creating Contract..." : "Create Contract"}
+                  </Button>
+                </div>
+              </form>
+            ) : deploymentPhase === 'tiers' ? (
+              <div className="space-y-6">
+                <div>
+                  <label className="text-sm font-medium">Add Subscription Tiers</label>
+                  <div className="mt-2 space-y-4">
+                    <div className="flex gap-2">
                       <Input
-                        value={newContractForm.name}
-                        onChange={(e) => setNewContractForm({...newContractForm, name: e.target.value})}
-                        placeholder="Enter Subscription Name"
+                        value={newTier.name}
+                        onChange={(e) => setNewTier({...newTier, name: e.target.value})}
+                        placeholder="Tier name"
+                        className="flex-1"
                       />
-                    </div>
-                    <div className="flex justify-end">
+                      <Input
+                        value={newTier.price}
+                        onChange={(e) => setNewTier({...newTier, price: e.target.value})}
+                        placeholder={`Price in ${selectedToken.name}`}
+                        type="number"
+                        className="w-48"
+                      />
                       <Button 
-                        onClick={() => setCreateStep('tiers')}
-                        disabled={!newContractForm.name}
+                        onClick={() => {
+                          createTier(newTier);
+                          setSubscriptionTiers([...subscriptionTiers, newTier]);
+                          setNewTier({ name: '', price: '' });
+                        }}
+                        disabled={!newTier.name || !newTier.price || subscriptionTiers.length >= 3}
                       >
-                        Next →
+                        Add Tier
                       </Button>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card>
-                <CardHeader>
-                  <CardTitle>
-                    {deploymentStatus === 'deploying' ? 'Deploying Contract...' :
-                     deploymentStatus === 'success' ? 'Contract Deployed!' :
-                     'Subscription Tiers'}
-                  </CardTitle>
-                  <CardDescription>
-                    {deploymentStatus === 'deploying' ? 'Please wait while we deploy your contract' :
-                     deploymentStatus === 'success' ? `Redirecting to dashboard in ${countdown}s` :
-                     'Add up to 3 subscription tiers'}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {deploymentStatus === 'deploying' ? (
-                    <div className="flex flex-col items-center py-8">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
-                      <p className="mt-4 text-sm text-muted-foreground">This may take a few moments...</p>
-                    </div>
-                  ) : deploymentStatus === 'success' ? (
-                    <div className="flex flex-col items-center py-8">
-                      <div className="text-green-500 text-xl">✓</div>
-                      <p className="mt-4 text-sm text-muted-foreground">Contract successfully deployed!</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="flex gap-2">
-                        <Input
-                          value={newTier.name}
-                          onChange={(e) => setNewTier({...newTier, name: e.target.value})}
-                          placeholder="Tier name"
-                          className="flex-1"
-                        />
-                        <Input
-                          value={newTier.price}
-                          onChange={(e) => setNewTier({...newTier, price: e.target.value})}
-                          placeholder="Price (in USD)"
-                          type="number"
-                          className="w-48"
-                        />
-                        <Button 
-                          onClick={addTier}
-                          disabled={subscriptionTiers.length >= 3}
-                        >
-                          Add
-                        </Button>
-                      </div>
 
-                      <div className="space-y-2">
-                        {subscriptionTiers.map((tier, index) => (
-                          <div key={index} className="flex items-center justify-between p-3 border rounded-md">
-                            <div>
-                              <p className="font-medium">{tier.name}</p>
-                              <p className="text-sm text-muted-foreground">${tier.price}</p>
-                            </div>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => removeTier(index)}
-                            >
-                              Remove
-                            </Button>
+                    <div className="space-y-2">
+                      {subscriptionTiers.map((tier, index) => (
+                        <div key={index} className="flex items-center justify-between p-3 border rounded-md">
+                          <div>
+                            <p className="font-medium">{tier.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {tier.price} {selectedToken.name}
+                            </p>
                           </div>
-                        ))}
-                      </div>
-
-                      {subscriptionTiers.length === 0 && (
-                        <p className="text-sm text-muted-foreground text-center py-4">
-                          Add at least one tier to create the contract
-                        </p>
-                      )}
-
-                      <div className="flex justify-between pt-4">
-                        <Button 
-                          variant="outline"
-                          onClick={() => setCreateStep('details')}
-                        >
-                          ← Back
-                        </Button>
-                        <Button 
-                          onClick={createSubscriptionContract}
-                          disabled={isCreatingContract || subscriptionTiers.length === 0}
-                        >
-                          {isCreatingContract ? "Creating..." : "Create Contract"}
-                        </Button>
-                      </div>
+                          <Button 
+                            type="button"
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => removeTier(index)}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      ))}
                     </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
+                  </div>
+                </div>
+
+                <Button 
+                  onClick={() => {
+                    // Reset all creation-related states
+                    setDeploymentPhase('details');
+                    setDeployedContract(null);
+                    setNewContractForm({ name: '', stablecoin: '' });
+                    setSubscriptionTiers([]);
+                    setNewTier({ name: '', price: '' });
+                    setSelectedToken(SUPPORTED_TOKENS[0]);
+                    setDeploymentStatus('idle');
+                    
+                    // Switch view and refresh contracts
+                    setActiveView('manage');
+                    refreshContracts();
+                  }}
+                  disabled={subscriptionTiers.length === 0}
+                  className="w-full mt-6"
+                >
+                  Complete Setup
+                </Button>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : (
@@ -335,9 +421,9 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
 
           <div className="h-screen overflow-auto">
             <div className="p-6">
-              <h1 className="text-2xl font-bold mb-6">Manage</h1>
+              {/*<h1 className="text-2xl font-bold mb-6">Manage</h1>*/}
               <div className="grid grid-cols-2 gap-6">
-                <Card>
+                {/*<Card>
                   <CardHeader>
                     <CardTitle>Total Subscribers</CardTitle>
                   </CardHeader>
@@ -352,11 +438,44 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
                   <CardContent>
                     <p className="text-2xl font-bold">$0</p>
                   </CardContent>
-                </Card>
+                </Card>*/}
 
                 <Card className="col-span-3">
                   <CardHeader>
-                    <CardTitle>Your Subscriptions</CardTitle>
+                    <div className="flex justify-between items-center">
+                      <CardTitle>Your Subscriptions</CardTitle>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => {
+                          refreshContracts();
+                          toast({
+                            title: "Refreshing...",
+                            description: "Updating your subscription list",
+                            variant: "default",
+                          });
+                        }}
+                      >
+                        <svg
+                          className="h-4 w-4 mr-2"
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                          <path d="M21 3v5h-5" />
+                          <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+                          <path d="M3 21v-5h5" />
+                        </svg>
+                        Refresh
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent>
                     <ScrollArea className="h-full overflow-y-auto">
@@ -366,54 +485,75 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
                         </div>
                       ) : (
                         <div className="space-y-6">
-                          {subscriptionContracts.map((contract) => (
+                          {subscriptionContracts.map((sub) => (
                             <div 
-                              key={contract.address} 
+                              key={sub.address} 
                               className="flex flex-col p-6 border rounded-lg hover:border-primary/20 transition-colors"
                             >
                               <div className="flex justify-between items-center mb-6">
-                                <div>
-                                  <h3 className="text-lg font-semibold text-foreground">
-                                    {contract.name}
+                                <div className="flex items-center gap-4">
+                                  <h3 className="text-md font-semibold text-foreground">
+                                    {sub.name}
                                   </h3>
-                                  <p className="text-sm text-muted-foreground mt-1">
-                                    Subscription Contract
-                                  </p>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      // Create temporary input element
+                                      const tempInput = document.createElement('input');
+                                      const url = `${window.location.origin}/${account}/${sub.address}`;
+                                      tempInput.value = url;
+                                      document.body.appendChild(tempInput);
+                                      
+                                      // Select and copy
+                                      tempInput.select();
+                                      try {
+                                        document.execCommand('copy');
+                                        toast({
+                                          title: "Link copied!",
+                                          description: "Go to your grid > create new item > paste link as website link",
+                                          variant: "default",
+                                        });
+                                      } catch (err) {
+                                        toast({
+                                          title: "Error",
+                                          description: "Failed to copy link. Please try again.",
+                                          variant: "destructive",
+                                        });
+                                      }
+                                      
+                                      // Cleanup
+                                      document.body.removeChild(tempInput);
+                                    }}
+                                  >
+                                    <Plus className="h-4 w-4 mr-2" />
+                                    Add To Grid
+                                  </Button>
                                 </div>
-                                <a 
-                                  href={`https://explorer.execution.mainnet.lukso.network/address/${contract.address}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer" 
-                                  className="text-sm text-muted-foreground hover:text-primary transition-colors"
-                                >
-                                  {contract.address.slice(0, 6)}...{contract.address.slice(-4)}
-                                </a>
                               </div>
                               
                               <Table>
                                 <TableHeader>
                                   <TableRow>
-                                    <TableHead>Tier Name</TableHead>
-                                    <TableHead className="text-right">Price</TableHead>
+                                    <TableHead className="w-[200px]">Tier Name</TableHead>
+                                    <TableHead className="w-[200px]">Price</TableHead>
+                                    <TableHead className="text-right">Status</TableHead>
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                  {contract.tiers.length === 0 ? (
-                                    <TableRow>
-                                      <TableCell colSpan={2} className="text-center text-muted-foreground">
-                                        No tiers configured
+                                  {sub.tiers.map((tier, index) => (
+                                    <TableRow key={index}>
+                                      <TableCell className="w-[200px]">{tier.name}</TableCell>
+                                      <TableCell className="w-[200px]">{tier.price} {tier.tokenSymbol}</TableCell>
+                                      <TableCell className="text-right">
+                                        <span className={`px-2 py-1 rounded-full text-xs ${
+                                          tier.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                        }`}>
+                                          {tier.isActive ? 'Active' : 'Inactive'}
+                                        </span>
                                       </TableCell>
                                     </TableRow>
-                                  ) : (
-                                    contract.tiers.map((tier, index) => (
-                                      <TableRow key={index}>
-                                        <TableCell className="font-medium">{tier.name}</TableCell>
-                                        <TableCell className="text-right">
-                                          ${Number(tier.price).toFixed(2)}
-                                        </TableCell>
-                                      </TableRow>
-                                    ))
-                                  )}
+                                  ))}
                                 </TableBody>
                               </Table>
                             </div>

@@ -1,0 +1,116 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "MockUniversalReceiver",
+  "sourceName": "contracts/lsp7/Mocks/UniversalReceiver.sol",
+  "abi": [
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "from",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "value",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "typeId",
+          "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes",
+          "name": "receivedData",
+          "type": "bytes"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes",
+          "name": "returnedValue",
+          "type": "bytes"
+        }
+      ],
+      "name": "UniversalReceiver",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "from",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "typeId",
+          "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes",
+          "name": "receivedData",
+          "type": "bytes"
+        }
+      ],
+      "name": "UniversalReceiverCalled",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes4",
+          "name": "interfaceId",
+          "type": "bytes4"
+        }
+      ],
+      "name": "supportsInterface",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "typeId",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes",
+          "name": "receivedData",
+          "type": "bytes"
+        }
+      ],
+      "name": "universalReceiver",
+      "outputs": [
+        {
+          "internalType": "bytes",
+          "name": "",
+          "type": "bytes"
+        }
+      ],
+      "stateMutability": "payable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x608060405234801561001057600080fd5b506102e3806100206000396000f3fe6080604052600436106100295760003560e01c806301ffc9a71461002e5780636bb56a14146100a5575b600080fd5b34801561003a57600080fd5b5061009061004936600461012f565b7fffffffff00000000000000000000000000000000000000000000000000000000167f6bb56a14000000000000000000000000000000000000000000000000000000001490565b60405190151581526020015b60405180910390f35b6100b86100b3366004610178565b6100c5565b60405161009c91906101f4565b6060833373ffffffffffffffffffffffffffffffffffffffff167fd0b2215566ecd3f3cfdb6e224a7b79ab7819747a756dd18a35618e2cd23832868585604051610110929190610260565b60405180910390a3506040805160208101909152600081529392505050565b60006020828403121561014157600080fd5b81357fffffffff000000000000000000000000000000000000000000000000000000008116811461017157600080fd5b9392505050565b60008060006040848603121561018d57600080fd5b83359250602084013567ffffffffffffffff808211156101ac57600080fd5b818601915086601f8301126101c057600080fd5b8135818111156101cf57600080fd5b8760208285010111156101e157600080fd5b6020830194508093505050509250925092565b600060208083528351808285015260005b8181101561022157858101830151858201604001528201610205565b5060006040828601015260407fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0601f8301168501019250505092915050565b60208152816020820152818360408301376000818301604090810191909152601f9092017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe016010191905056fea264697066735822122034cc0730b028e821b869e5dd857a0fe957963c27345ff83364c73c8c59381c2764736f6c63430008110033",
+  "deployedBytecode": "0x6080604052600436106100295760003560e01c806301ffc9a71461002e5780636bb56a14146100a5575b600080fd5b34801561003a57600080fd5b5061009061004936600461012f565b7fffffffff00000000000000000000000000000000000000000000000000000000167f6bb56a14000000000000000000000000000000000000000000000000000000001490565b60405190151581526020015b60405180910390f35b6100b86100b3366004610178565b6100c5565b60405161009c91906101f4565b6060833373ffffffffffffffffffffffffffffffffffffffff167fd0b2215566ecd3f3cfdb6e224a7b79ab7819747a756dd18a35618e2cd23832868585604051610110929190610260565b60405180910390a3506040805160208101909152600081529392505050565b60006020828403121561014157600080fd5b81357fffffffff000000000000000000000000000000000000000000000000000000008116811461017157600080fd5b9392505050565b60008060006040848603121561018d57600080fd5b83359250602084013567ffffffffffffffff808211156101ac57600080fd5b818601915086601f8301126101c057600080fd5b8135818111156101cf57600080fd5b8760208285010111156101e157600080fd5b6020830194508093505050509250925092565b600060208083528351808285015260005b8181101561022157858101830151858201604001528201610205565b5060006040828601015260407fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0601f8301168501019250505092915050565b60208152816020820152818360408301376000818301604090810191909152601f9092017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe016010191905056fea264697066735822122034cc0730b028e821b869e5dd857a0fe957963c27345ff83364c73c8c59381c2764736f6c63430008110033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

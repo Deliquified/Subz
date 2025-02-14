@@ -12,11 +12,45 @@ import LSP6Schema from '@erc725/erc725.js/schemas/LSP6KeyManager.json';
 import UniversalProfileArtifact from '@lukso/lsp-smart-contracts/artifacts/UniversalProfile.json';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useContracts } from './provider/contractProvider';
 
 export default function Home() {
   const { contextAccounts, accounts, walletConnected, client, provider } = useUpProvider();
-
+  const [isDeploying, setIsDeploying] = useState(false);
+  const { refreshContracts } = useContracts();
   const isGridOwner = contextAccounts[0]?.toLowerCase() === accounts[0]?.toLowerCase();
+
+  const deploy = async () => {
+    try {
+      setIsDeploying(true);
+      
+      if (!client || !provider) {
+        throw new Error("Client or provider not initialized");
+      }
+
+      // Create contract deployment transaction
+      const deploymentTransaction = {
+        from: accounts[0],
+        data: LSP8.bytecode as `0x${string}`,
+        chain: client.chain
+      };
+
+      // Deploy the contract
+      const hash = await client.sendTransaction(deploymentTransaction);
+      console.log("Transaction hash:", hash);
+
+      // Wait for deployment to complete
+      const receipt = await client.waitForTransactionReceipt({ hash });
+      console.log("SubscriptionFactory Contract deployed to:", receipt.contractAddress);
+
+      // Refresh the contracts list
+      await refreshContracts();
+    } catch (error) {
+      console.error("Error deploying contract:", error);
+    } finally {
+      setIsDeploying(false);
+    }
+  };
 
   if (!walletConnected) {
     return (
@@ -59,6 +93,12 @@ export default function Home() {
   return (
     <div className="w-full h-full">
       <CreatorDashboard account={accounts[0]} provider={provider} client={client} />
+      <Button 
+        onClick={() => deploy()} 
+        disabled={isDeploying}
+      >
+        {isDeploying ? "Deploying..." : "Deploy Contract"}
+      </Button>
     </div>
   );
 }

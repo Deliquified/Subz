@@ -5,20 +5,24 @@ import { ethers } from 'ethers';
 import { useUpProvider } from "../upProvider";
 import FactoryABI from '../json/Factory.json';
 import SubscriptionABI from '../json/Subscription.json';
+import { keccak256, toUtf8Bytes } from 'ethers/lib/utils';
 
 const LUKSO_RPC = 'https://rpc.testnet.lukso.network';
-const FACTORY_ADDRESS = "0xe861e6A7267Be14aC701e342fcf34e5D1F9e2AF0";
+const FACTORY_ADDRESS = "0x1F4aa0a6eC5ec3c21FBabcb6aAD6e3dE45775c7a";
 
 interface SubscriptionTier {
   name: string;
   price: string;
   isActive: boolean;
+  tokenSymbol: string;
 }
 
 interface SubscriptionContract {
   address: string;
   name: string;
   tiers: SubscriptionTier[];
+  tokenAddress: string;
+  tokenSymbol: string;
 }
 
 interface ContractsContextType {
@@ -44,6 +48,34 @@ export function ContractsProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const getTokenSymbol = async (tokenAddress: string, provider: ethers.providers.JsonRpcProvider) => {
+    const symbolKey = keccak256(toUtf8Bytes('LSP4TokenSymbol'));
+    const abi = ['function getData(bytes32 key) view returns (bytes)'];
+    const tokenContract = new ethers.Contract(tokenAddress, abi, provider);
+    
+    try {
+      const symbolValue = await tokenContract.getData(symbolKey);
+      return ethers.utils.toUtf8String(symbolValue);
+    } catch (error) {
+      console.error('Error fetching token symbol:', error);
+      return 'Unknown';
+    }
+  };
+
+  const getTokenName = async (contractAddress: string, provider: ethers.providers.JsonRpcProvider) => {
+    const nameKey = keccak256(toUtf8Bytes('LSP4TokenName'));
+    const abi = ['function getData(bytes32 key) view returns (bytes)'];
+    const contract = new ethers.Contract(contractAddress, abi, provider);
+    
+    try {
+      const nameValue = await contract.getData(nameKey);
+      return ethers.utils.toUtf8String(nameValue);
+    } catch (error) {
+      console.error('Error fetching token name:', error);
+      return 'Unknown';
+    }
+  };
+
   const loadCreatorContracts = async () => {
     if (!walletConnected || !accounts[0]) return;
 
@@ -55,45 +87,41 @@ export function ContractsProvider({ children }: { children: ReactNode }) {
       const factoryContract = new ethers.Contract(FACTORY_ADDRESS, FactoryABI, provider);
       
       const addresses = await factoryContract.getCreatorSubscriptions(accounts[0]);
-      console.log(accounts[0], "accounts[0]");
-      console.log('Contract addresses:', addresses);
+
+      console.log(addresses, "addresses");
 
       const contractsWithDetails = await Promise.all(
         addresses.map(async (address: string) => {
           const contract = new ethers.Contract(address, SubscriptionABI, provider);
-          const name = await contract.subscriptionName();
+          const name = await getTokenName(address, provider);
           const totalTiers = await contract.totalTiers();
-          
-          console.log(`Contract ${address}:`);
-          console.log('- Name:', name);
-          console.log('- Total tiers:', totalTiers.toString());
+          const tokenAddress = await contract.paymentToken();
+          const tokenSymbol = await getTokenSymbol(tokenAddress, provider);
           
           const tiersCount = totalTiers.toNumber();
-          console.log('- Tiers count:', tiersCount);
           
           // Fetch all tiers
           const tiers = [];
           for (let i = 0; i < tiersCount; i++) {
             const tier = await contract.tiers(i);
-            console.log(`- Tier ${i}:`, tier);
             tiers.push({
               name: tier.name,
               price: ethers.utils.formatUnits(tier.price, 18),
-              isActive: tier.isActive
+              isActive: tier.isActive,
+              tokenSymbol
             });
           }
-
-          console.log('- Processed tiers:', tiers);
 
           return {
             address,
             name,
-            tiers
+            tiers,
+            tokenAddress,
+            tokenSymbol
           };
         })
       );
 
-      console.log('Final contracts data:', contractsWithDetails);
       setSubscriptionContracts(contractsWithDetails);
     } catch (err) {
       console.error('Contract loading error:', err);
