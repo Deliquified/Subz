@@ -126,7 +126,7 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
     setDeploymentStatus('deploying');
     
     try {
-      // First transaction - deploy contract
+      // Fire and forget the contract deployment
       client.writeContract({
         account: account,
         address: FACTORY_ADDRESS,
@@ -140,13 +140,13 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
       });
       
       toast({
-        title: "Deploying Contract",
-        description: "Please wait while we deploy your contract...",
+        title: "Transaction Sent",
+        description: "Please confirm the contract deployment in your wallet",
         variant: "default",
       });
 
-      // Wait 10 seconds before querying
-      await new Promise(resolve => setTimeout(resolve, 10000));
+      // Wait a reasonable time for deployment
+      await new Promise(resolve => setTimeout(resolve, 15000));
 
       // Query factory contract for latest deployment
       const rpcProvider = new ethers.providers.JsonRpcProvider('https://42.rpc.thirdweb.com');
@@ -156,10 +156,10 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
       if (subscriptions.length > 0) {
         const deployedContract = subscriptions[subscriptions.length - 1];
         
-        // Create tiers
+        // Fire and forget tier creation transactions
         for (const tier of subscriptionTiers) {
           const price = ethers.utils.parseUnits(tier.price, 18);
-          await client.writeContract({
+          client.writeContract({
             account: account,
             address: deployedContract,
             abi: SubscriptionABI,
@@ -169,12 +169,12 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
         }
 
         toast({
-          title: "Success!",
-          description: "Contract deployed and tiers created successfully.",
+          title: "Creating Tiers",
+          description: "Please confirm the tier creation transactions in your wallet",
           variant: "default",
         });
 
-        // Reset and return to manage view
+        // Set success state immediately
         setDeploymentStatus('success');
         setTimeout(() => {
           setActiveView('manage');
