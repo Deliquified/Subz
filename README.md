@@ -1,11 +1,11 @@
 # Subz - Decentralized Subscription Management on LUKSO
 
 <div align="center">
-  <img src="public/banner.png" alt="Subz Banner" width="100%">
   
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
   [![LUKSO](https://img.shields.io/badge/LUKSO-Ready-pink.svg)](https://lukso.network)
   [![Universal Profile](https://img.shields.io/badge/Universal%20Profile-Enabled-blue.svg)](https://docs.lukso.tech/standards/universal-profile/introduction)
+  [![Smart Contracts](https://img.shields.io/badge/Smart%20Contracts-Solidity-green.svg)](https://github.com/Deliquified/contracts-subz)
 </div>
 
 ## 🌟 Overview
@@ -17,6 +17,10 @@ Subz revolutionizes the creator economy by enabling truly decentralized subscrip
 - Minimal platform fees (2%)
 - NFT-powered subscription benefits
 - Complete control over content and revenue
+
+## Demo
+
+https://www.youtube.com/watch?v=B1P9ojKESTo
 
 ## 🎯 Key Features
 
