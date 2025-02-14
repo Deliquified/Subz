@@ -406,12 +406,13 @@ export default function SubscriptionPage() {
                     <TooltipContent side="right" className="max-w-[300px] p-4">
                       <Card>
                         <CardHeader className="pb-2">
-                          <CardTitle className="text-sm">How to Subscribe</CardTitle>
+                          <CardTitle className="text-sm">About Subscription Tiers</CardTitle>
                         </CardHeader>
                         <CardContent className="text-xs space-y-2">
-                          <p>1. Select your preferred tier</p>
-                          <p>2. Authorize the subscription contract (one-time)</p>
-                          <p>3. Complete your subscription</p>
+                          <p>• Payment is made once a month</p>
+                          <p>• Subscriptions auto-renew monthly</p>
+                          <p>• You can cancel anytime before renewal</p>
+                          <p>• Access begins immediately after subscription</p>
                         </CardContent>
                       </Card>
                     </TooltipContent>
