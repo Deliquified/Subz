@@ -50,8 +50,8 @@ interface SubscriptionStatus {
 }
 
 export default function SubscriptionPage() {
+  const { accounts, walletConnected, signer, provider } = useUpProvider();
   const { creator, contract } = useParams();
-  const { accounts, walletConnected, provider } = useUpProvider();
   const { toast } = useToast();
   const [tiers, setTiers] = useState<Tier[]>([]);
   const [selectedTier, setSelectedTier] = useState<number | null>(null);
@@ -112,7 +112,7 @@ export default function SubscriptionPage() {
       const tokenSymbol = ethers.toUtf8String(symbolValue);
 
       const tiersData = [];
-      for (let i = 0; i < totalTiers.toNumber(); i++) {
+      for (let i = 0; i < Number(totalTiers); i++) {
         const tier = await subscriptionContract.tiers(i);
         tiersData.push({
           id: i,
@@ -142,8 +142,8 @@ export default function SubscriptionPage() {
       
       const subscriber = await subscriptionContract.subscribers(accounts[0]);
       const isActive = subscriber.isActive;
-      const expiry = subscriber.expiry.toNumber();
-      const tierId = subscriber.tierId.toNumber();
+      const expiry = Number(subscriber.expiry);
+      const tierId = Number(subscriber.tierId);
       
       if (isActive) {
         // Get tier name
@@ -162,13 +162,19 @@ export default function SubscriptionPage() {
   };
 
   const handleApprove = async () => {
-    if (!walletConnected || selectedTier === null) return;
+    if (!walletConnected || selectedTier === null || !signer) return;
     
     setIsApproving(true);
     try {
       const rpcProvider = new ethers.JsonRpcProvider('https://lukso.nownodes.io/3eae6d25-6bbb-4de1-a684-9f40dcc3f793');
       const subscriptionContract = new ethers.Contract(contract as string, SubscriptionABI, rpcProvider);
       const tokenAddress = await subscriptionContract.paymentToken();
+
+      const upContract = new ethers.Contract(
+        accounts[0],
+        UniversalProfileArtifacts.abi,
+        signer
+      );
 
       const tokenInterface = new ethers.Interface([
         'function authorizeOperator(address operator, uint256 amount, bytes data) external'
@@ -180,25 +186,19 @@ export default function SubscriptionPage() {
         '0x'
       ]);
 
-      // Fire and forget the transaction
-      client.writeContract({
-        account: accounts[0],
-        address: accounts[0],
-        abi: UniversalProfileArtifacts.abi,
-        functionName: 'execute',
-        args: [
-          0,
-          tokenAddress,
-          0,
-          authorizeData
-        ]
-      });
+      const tx = await upContract.execute(
+        0,
+        tokenAddress,
+        0,
+        authorizeData
+      );
 
-      // Immediately set as approved
+      await rpcProvider.waitForTransaction(tx.hash);
+      
       setIsApproved(true);
       toast({
-        title: "Transaction Sent",
-        description: "Please confirm the transaction in your wallet",
+        title: "Success",
+        description: "Authorization successful",
         variant: "default",
       });
 
@@ -215,10 +215,11 @@ export default function SubscriptionPage() {
   };
 
   const handleSubscribe = async () => {
-    if (!walletConnected || selectedTier === null || !isApproved) return;
+    if (!walletConnected || selectedTier === null || !isApproved || !signer) return;
     
     setSubscribing(true);
     try {
+      const rpcProvider = new ethers.JsonRpcProvider('https://lukso.nownodes.io/3eae6d25-6bbb-4de1-a684-9f40dcc3f793');
       const subscriptionInterface = new ethers.Interface([
         'function subscribe(uint256) external'
       ]);
@@ -227,27 +228,30 @@ export default function SubscriptionPage() {
         selectedTier
       ]);
 
-      // Fire and forget the transaction
-      client.writeContract({
-        account: accounts[0],
-        address: accounts[0],
-        abi: UniversalProfileArtifacts.abi,
-        functionName: 'execute',
-        args: [
-          0,
-          contract,
-          0,
-          subscribeData
-        ]
-      });
+      const upContract = new ethers.Contract(
+        accounts[0],
+        UniversalProfileArtifacts.abi,
+        signer
+      );
 
-      // Immediately show success
+      const tx = await upContract.execute(
+        0,
+        contract,
+        0,
+        subscribeData
+      );
+
+      await rpcProvider.waitForTransaction(tx.hash);
+
       setShowSuccess(true);
       toast({
-        title: "Transaction Sent",
-        description: "Please confirm the transaction in your wallet",
+        title: "Success",
+        description: "Subscription successful",
         variant: "default",
       });
+
+      // Refresh subscription status after successful subscription
+      await checkSubscriptionStatus();
 
     } catch (error) {
       console.error('Error subscribing:', error);
