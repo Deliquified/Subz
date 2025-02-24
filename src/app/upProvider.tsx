@@ -20,16 +20,18 @@ import { createClientUPProvider } from "@lukso/up-provider";
 import { createWalletClient, custom } from "viem";
 import { lukso, luksoTestnet } from "viem/chains";
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { BrowserProvider, type Eip1193Provider, ethers } from 'ethers'
 
 interface UpProviderContext {
   provider: any;
-  client: any;
+  browserProvider: BrowserProvider | null;
+  signer: ethers.JsonRpcSigner | null;
   chainId: number;
-  accounts: Array<`0x${string}`>;
-  contextAccounts: Array<`0x${string}`>;
+  accounts: string[];
+  contextAccounts: string[];
   walletConnected: boolean;
-  selectedAddress: `0x${string}` | null;
-  setSelectedAddress: (address: `0x${string}` | null) => void;
+  selectedAddress: string | null;
+  setSelectedAddress: (address: string | null) => void;
   isSearching: boolean;
   setIsSearching: (isSearching: boolean) => void;
 }
@@ -57,31 +59,32 @@ export function UpProvider({ children }: UpProviderProps) {
   const [walletConnected, setWalletConnected] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState<`0x${string}` | null>(null);
   const [isSearching, setIsSearching] = useState(false);
-
-  const client = (() => {
-    if (provider && chainId) {
-      return createWalletClient({
-        chain: chainId === 42 ? lukso : luksoTestnet,
-        transport: custom(provider),
-      });
-    }
-    return null;
-  })();
+  const [signer, setSigner] = useState<ethers.JsonRpcSigner | null>(null);
+  const [browserProvider, setBrowserProvider] = useState<BrowserProvider | null>(null);
 
   useEffect(() => {
     let mounted = true;
 
     async function init() {
       try {
-        if (!client || !provider) return;
+        if (!provider) return;
 
-        const _chainId = (await client.getChainId()) as number;
+        const _browserProvider = new ethers.BrowserProvider(provider as unknown as Eip1193Provider);
+        if (!mounted) return;
+        setBrowserProvider(_browserProvider);
+
+        const _signer = await _browserProvider.getSigner();
+        if (!mounted) return;
+        setSigner(_signer);
+
+        const network = await _browserProvider.getNetwork();
+        const _chainId = Number(network.chainId);
         if (!mounted) return;
         setChainId(_chainId);
 
-        const _accounts = (await client.getAddresses()) as Array<`0x${string}`>;
+        const _accounts = await _browserProvider.listAccounts();
         if (!mounted) return;
-        setAccounts(_accounts);
+        setAccounts(_accounts.map(account => account.address as `0x${string}`));
 
         const _contextAccounts = provider.contextAccounts;
         if (!mounted) return;
@@ -120,19 +123,20 @@ export function UpProvider({ children }: UpProviderProps) {
         provider.removeListener("chainChanged", chainChanged);
       };
     }
-  }, [client, accounts.length, contextAccounts.length]);
+  }, [accounts.length, contextAccounts.length]);
 
   return (
     <UpContext.Provider
       value={{
         provider,
-        client,
+        browserProvider,
+        signer,
         chainId,
         accounts,
         contextAccounts,
         walletConnected,
         selectedAddress,
-        setSelectedAddress,
+        setSelectedAddress: (address: string | null) => setSelectedAddress(address as `0x${string}` | null),
         isSearching,
         setIsSearching,
       }}

@@ -5,7 +5,7 @@ import { ethers } from 'ethers';
 import { useUpProvider } from "../upProvider";
 import FactoryABI from '../json/Factory.json';
 import SubscriptionABI from '../json/Subscription.json';
-import { keccak256, toUtf8Bytes } from 'ethers/lib/utils';
+import { keccak256, toUtf8Bytes } from 'ethers';
 
 const LUKSO_RPC = 'https://lukso.nownodes.io/3eae6d25-6bbb-4de1-a684-9f40dcc3f793';
 const FACTORY_ADDRESS = "0x4170CBC17BF719307406787654336220d14980d4";
@@ -48,28 +48,28 @@ export function ContractsProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const getTokenSymbol = async (tokenAddress: string, provider: ethers.providers.JsonRpcProvider) => {
+  const getTokenSymbol = async (tokenAddress: string, provider: ethers.JsonRpcProvider) => {
     const symbolKey = keccak256(toUtf8Bytes('LSP4TokenSymbol'));
     const abi = ['function getData(bytes32 key) view returns (bytes)'];
     const tokenContract = new ethers.Contract(tokenAddress, abi, provider);
     
     try {
       const symbolValue = await tokenContract.getData(symbolKey);
-      return ethers.utils.toUtf8String(symbolValue);
+      return ethers.toUtf8String(symbolValue);
     } catch (error) {
       console.error('Error fetching token symbol:', error);
       return 'Unknown';
     }
   };
 
-  const getTokenName = async (contractAddress: string, provider: ethers.providers.JsonRpcProvider) => {
+  const getTokenName = async (contractAddress: string, provider: ethers.JsonRpcProvider) => {
     const nameKey = keccak256(toUtf8Bytes('LSP4TokenName'));
     const abi = ['function getData(bytes32 key) view returns (bytes)'];
     const contract = new ethers.Contract(contractAddress, abi, provider);
     
     try {
       const nameValue = await contract.getData(nameKey);
-      return ethers.utils.toUtf8String(nameValue);
+      return ethers.toUtf8String(nameValue);
     } catch (error) {
       console.error('Error fetching token name:', error);
       return 'Unknown';
@@ -83,12 +83,12 @@ export function ContractsProvider({ children }: { children: ReactNode }) {
     setError(null);
 
     try {
-      const provider = new ethers.providers.JsonRpcProvider(LUKSO_RPC);
+      const provider = new ethers.JsonRpcProvider(LUKSO_RPC);
       const factoryContract = new ethers.Contract(FACTORY_ADDRESS, FactoryABI, provider);
       
       const addresses = await factoryContract.getCreatorSubscriptions(accounts[0]);
 
-      console.log(addresses, "addresses");
+      //console.log(addresses, "addresses");
 
       const contractsWithDetails = await Promise.all(
         addresses.map(async (address: string) => {
@@ -98,27 +98,30 @@ export function ContractsProvider({ children }: { children: ReactNode }) {
           const tokenAddress = await contract.paymentToken();
           const tokenSymbol = await getTokenSymbol(tokenAddress, provider);
           
-          const tiersCount = totalTiers.toNumber();
+          //console.log(`Contract ${name} (${address}) has ${totalTiers} tiers`);
           
-          // Fetch all tiers
+          const tiersCount = Number(totalTiers);
           const tiers = [];
           for (let i = 0; i < tiersCount; i++) {
             const tier = await contract.tiers(i);
+            //console.log(`Contract ${name} - Tier ${i}:`, tier);
             tiers.push({
               name: tier.name,
-              price: ethers.utils.formatUnits(tier.price, 18),
+              price: ethers.formatUnits(tier.price, 18),
               isActive: tier.isActive,
               tokenSymbol
             });
           }
 
-          return {
+          const result = {
             address,
             name,
             tiers,
             tokenAddress,
             tokenSymbol
           };
+          //console.log(`Final contract data for ${name}:`, result);
+          return result;
         })
       );
 

@@ -51,7 +51,7 @@ interface SubscriptionStatus {
 
 export default function SubscriptionPage() {
   const { creator, contract } = useParams();
-  const { accounts, walletConnected, provider, client } = useUpProvider();
+  const { accounts, walletConnected, provider } = useUpProvider();
   const { toast } = useToast();
   const [tiers, setTiers] = useState<Tier[]>([]);
   const [selectedTier, setSelectedTier] = useState<number | null>(null);
@@ -99,17 +99,17 @@ export default function SubscriptionPage() {
 
   const loadContractData = async () => {
     try {
-      const rpcProvider = new ethers.providers.JsonRpcProvider('https://lukso.nownodes.io/3eae6d25-6bbb-4de1-a684-9f40dcc3f793');
+      const rpcProvider = new ethers.JsonRpcProvider('https://lukso.nownodes.io/3eae6d25-6bbb-4de1-a684-9f40dcc3f793');
       const subscriptionContract = new ethers.Contract(contract as string, SubscriptionABI, rpcProvider);
       
       const totalTiers = await subscriptionContract.totalTiers();
       const tokenAddress = await subscriptionContract.paymentToken(); 
       
       // Get token symbol using LSP4 standard
-      const symbolKey = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('LSP4TokenSymbol'));
+      const symbolKey = ethers.keccak256(ethers.toUtf8Bytes('LSP4TokenSymbol'));
       const tokenContract = new ethers.Contract(tokenAddress, ['function getData(bytes32) view returns (bytes)'], rpcProvider);
       const symbolValue = await tokenContract.getData(symbolKey);
-      const tokenSymbol = ethers.utils.toUtf8String(symbolValue);
+      const tokenSymbol = ethers.toUtf8String(symbolValue);
 
       const tiersData = [];
       for (let i = 0; i < totalTiers.toNumber(); i++) {
@@ -117,7 +117,7 @@ export default function SubscriptionPage() {
         tiersData.push({
           id: i,
           name: tier.name,
-          price: ethers.utils.formatUnits(tier.price, 18),
+          price: ethers.formatUnits(tier.price, 18),
           isActive: tier.isActive,
           tokenSymbol
         });
@@ -137,7 +137,7 @@ export default function SubscriptionPage() {
 
   const checkSubscriptionStatus = async () => {
     try {
-      const rpcProvider = new ethers.providers.JsonRpcProvider('https://lukso.nownodes.io/3eae6d25-6bbb-4de1-a684-9f40dcc3f793');
+      const rpcProvider = new ethers.JsonRpcProvider('https://lukso.nownodes.io/3eae6d25-6bbb-4de1-a684-9f40dcc3f793');
       const subscriptionContract = new ethers.Contract(contract as string, SubscriptionABI, rpcProvider);
       
       const subscriber = await subscriptionContract.subscribers(accounts[0]);
@@ -166,17 +166,17 @@ export default function SubscriptionPage() {
     
     setIsApproving(true);
     try {
-      const rpcProvider = new ethers.providers.JsonRpcProvider('https://lukso.nownodes.io/3eae6d25-6bbb-4de1-a684-9f40dcc3f793');
+      const rpcProvider = new ethers.JsonRpcProvider('https://lukso.nownodes.io/3eae6d25-6bbb-4de1-a684-9f40dcc3f793');
       const subscriptionContract = new ethers.Contract(contract as string, SubscriptionABI, rpcProvider);
       const tokenAddress = await subscriptionContract.paymentToken();
 
-      const tokenInterface = new ethers.utils.Interface([
+      const tokenInterface = new ethers.Interface([
         'function authorizeOperator(address operator, uint256 amount, bytes data) external'
       ]);
 
       const authorizeData = tokenInterface.encodeFunctionData('authorizeOperator', [
         contract,
-        ethers.constants.MaxUint256,
+        ethers.MaxUint256,
         '0x'
       ]);
 
@@ -219,7 +219,7 @@ export default function SubscriptionPage() {
     
     setSubscribing(true);
     try {
-      const subscriptionInterface = new ethers.utils.Interface([
+      const subscriptionInterface = new ethers.Interface([
         'function subscribe(uint256) external'
       ]);
 

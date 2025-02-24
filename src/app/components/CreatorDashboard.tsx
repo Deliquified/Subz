@@ -40,11 +40,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Progress } from "@/components/ui/progress";
 
 interface CreatorDashboardProps {
   account: string | null;
   provider: any; // Changed from ethers.providers.Web3Provider
-  client: any;
+  signer: any;
+  browserProvider: any;
 }
 
 interface SubscriptionTier {
@@ -60,7 +62,151 @@ interface Subscription {
   transactionHash: string;
 }
 
-export default function CreatorDashboard({ account, provider, client }: CreatorDashboardProps) {
+interface DeploymentStep {
+  status: 'pending' | 'processing' | 'complete' | 'error';
+  message: string;
+}
+
+const TransactionScreen = ({ 
+  steps, 
+  progress, 
+  error, 
+  onRetry, 
+  onCancel, 
+  isComplete 
+}: { 
+  steps: DeploymentStep[];
+  progress: number;
+  error: boolean;
+  onRetry: () => void;
+  onCancel: () => void;
+  isComplete: boolean;
+}) => {
+  const [countdown, setCountdown] = useState(5);
+
+  useEffect(() => {
+    if (isComplete) {
+      const timer = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            onCancel();
+            return 5;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [isComplete, onCancel]);
+
+  return (
+    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50">
+      <div className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%]">
+        <div className="bg-background border rounded-lg shadow-lg w-[400px] p-6">
+          <div className="space-y-6">
+            <div className="space-y-2 text-center">
+              <h2 className="text-lg font-semibold">
+                {error ? "Transaction Failed" : 
+                 isComplete ? "Success!" : 
+                 "Creating Subscription"}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {error ? "There was an error processing your transaction" :
+                 isComplete ? "Your subscription has been created" :
+                 "Please wait while we process your transaction"}
+              </p>
+            </div>
+
+            <Progress value={progress} className="w-full animate-pulse" />
+
+            <div className="space-y-3">
+              {steps.map((step, index) => (
+                <div key={index} className="flex items-center gap-3">
+                  {step.status === 'pending' && (
+                    <div className="h-2 w-2 rounded-full bg-muted" />
+                  )}
+                  {step.status === 'processing' && (
+                    <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+                  )}
+                  {step.status === 'complete' && (
+                    <svg
+                      className="h-4 w-4 text-green-500"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                  )}
+                  {step.status === 'error' && (
+                    <svg
+                      className="h-4 w-4 text-red-500"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  )}
+                  <span className={`text-sm ${
+                    step.status === 'processing' ? 'text-blue-500 font-medium' :
+                    step.status === 'complete' ? 'text-green-500' :
+                    step.status === 'error' ? 'text-red-500' :
+                    'text-muted-foreground'
+                  }`}>
+                    {step.message}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {error && (
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={onCancel}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={onRetry}
+                  className="flex-1"
+                >
+                  Try Again
+                </Button>
+              </div>
+            )}
+
+            {isComplete && (
+              <div className="text-center space-y-2">
+                <Button 
+                  onClick={onCancel}
+                  className="w-full"
+                >
+                  Redirecting...
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default function CreatorDashboard({ account, provider, signer, browserProvider }: CreatorDashboardProps) {
   const { toast } = useToast();
   const { subscriptionContracts, refreshContracts } = useContracts();
   const [isCreatingContract, setIsCreatingContract] = useState(false);
@@ -82,12 +228,21 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
   const { profileData, isLoading } = useProfile();
   const { accounts } = useUpProvider();
   const [isLoadingSubscriptions, setIsLoadingSubscriptions] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+  const [showTransactionScreen, setShowTransactionScreen] = useState(false);
 
   const [selectedToken, setSelectedToken] = useState<Token>(SUPPORTED_TOKENS[0]);
 
   // Add these to existing state declarations
   const [deployedContract, setDeployedContract] = useState<string | null>(null);
+
+  // Add these new state declarations where other states are defined
+  const [deploymentSteps, setDeploymentSteps] = useState<DeploymentStep[]>([
+    { status: 'pending', message: 'Deploy subscription contract' },
+    { status: 'pending', message: 'Create subscription tiers' },
+  ]);
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [progress, setProgress] = useState(0);
 
   // Reset states when switching views
   useEffect(() => {
@@ -118,83 +273,126 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
     }
   }, [deploymentStatus]);
 
-  const createSubscriptionContract = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleRetry = () => {
+    setError(false);
+    setProgress(0);
+    setDeploymentSteps([
+      { status: 'pending', message: 'Deploy subscription contract' },
+      { status: 'pending', message: 'Create subscription tiers' },
+    ]);
+    createSubscriptionContract();
+  };
+
+  const handleCancel = () => {
+    setShowTransactionScreen(false);
+    setActiveView('manage');
+    resetForm();
+    setDeploymentStatus('idle');
+    setProgress(0);
+    setError(false);
+  };
+
+  useEffect(() => {
+    if (deploymentStatus === 'idle') {
+      setShowTransactionScreen(false);
+    }
+  }, [deploymentStatus]);
+
+  const createSubscriptionContract = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!provider || !account || !subscriptionTiers.length) return;
 
+    setShowTransactionScreen(true);
     setIsCreatingContract(true);
+    setProgress(0);
+    setError(false);
     setDeploymentStatus('deploying');
     
     try {
-      // Fire and forget the contract deployment
-      client.writeContract({
-        account: account,
-        address: FACTORY_ADDRESS,
-        abi: FactoryABI,
-        functionName: 'createSubscription',
-        args: [
-          newContractForm.name,
-          account,
-          selectedToken.address
-        ]
-      });
-      
-      toast({
-        title: "Transaction Sent",
-        description: "Please confirm the contract deployment in your wallet",
-        variant: "default",
-      });
+      // Update status for contract deployment
+      setDeploymentSteps(steps => steps.map((step, i) => 
+        i === 0 ? { ...step, status: 'processing' } : step
+      ));
+      setProgress(25);
 
-      // Wait a reasonable time for deployment
-      await new Promise(resolve => setTimeout(resolve, 15000));
-
-      // Query factory contract for latest deployment
-      const rpcProvider = new ethers.providers.JsonRpcProvider('https://lukso.nownodes.io/3eae6d25-6bbb-4de1-a684-9f40dcc3f793');
+      const rpcProvider = new ethers.JsonRpcProvider('https://lukso.nownodes.io/3eae6d25-6bbb-4de1-a684-9f40dcc3f793');
       const factoryContract = new ethers.Contract(FACTORY_ADDRESS, FactoryABI, rpcProvider);
-      const subscriptions = await factoryContract.getCreatorSubscriptions(account);
+      const factoryDeployment = new ethers.Contract(FACTORY_ADDRESS, FactoryABI, signer);
+
+      const tx = await factoryDeployment.createSubscription(
+        newContractForm.name,
+        account,
+        selectedToken.address
+      );
+
+      const receipt = await rpcProvider.waitForTransaction(tx.hash);
       
-      if (subscriptions.length > 0) {
-        const deployedContract = subscriptions[subscriptions.length - 1];
+      if (receipt?.status === 1) {
+        // Update status for successful contract deployment
+        setDeploymentSteps(steps => steps.map((step, i) => 
+          i === 0 ? { ...step, status: 'complete' } : step
+        ));
+        setProgress(50);
+
+        const subscriptions = await factoryContract.getCreatorSubscriptions(account);
         
-        // Fire and forget tier creation transactions
-        for (const tier of subscriptionTiers) {
-          const price = ethers.utils.parseUnits(tier.price, 18);
-          client.writeContract({
-            account: account,
-            address: deployedContract,
-            abi: SubscriptionABI,
-            functionName: 'createTier',
-            args: [tier.name, price]
-          });
+        if (subscriptions.length > 0) {
+          const updatedSubscriptions = await factoryContract.getCreatorSubscriptions(account);
+          const deployedContract = updatedSubscriptions[updatedSubscriptions.length - 1];
+          
+          // Update status for tier creation
+          setDeploymentSteps(steps => steps.map((step, i) => 
+            i === 1 ? { ...step, status: 'processing' } : step
+          ));
+          
+          // Create tiers
+          const totalTiers = subscriptionTiers.length;
+          for (let i = 0; i < totalTiers; i++) {
+            const tier = subscriptionTiers[i];
+            const price = ethers.parseUnits(tier.price, 18);
+            const subscriptionContract = new ethers.Contract(deployedContract, SubscriptionABI, signer);
+            
+            setDeploymentSteps(steps => steps.map((step, idx) => 
+              idx === 1 ? { ...step, message: `Creating tier ${i + 1} of ${totalTiers}` } : step
+            ));
+            
+            const tx = await subscriptionContract.createTier(tier.name, price);
+            await rpcProvider.waitForTransaction(tx.hash);
+            
+            // Update progress based on tier creation
+            setProgress(50 + ((i + 1) / totalTiers) * 50);
+          }
+
+          // Update final status
+          setDeploymentSteps(steps => steps.map((step, i) => 
+            i === 1 ? { ...step, status: 'complete', message: 'Created subscription tiers' } : step
+          ));
+          setProgress(100);
+          
+          // Set success state and handle cleanup
+          setDeploymentStatus('success');
+          setTimeout(() => {
+            refreshContracts();
+            setIsCreatingContract(false);
+            resetForm();
+          }, 2000);
         }
-
-        toast({
-          title: "Creating Tiers",
-          description: "Please confirm the tier creation transactions in your wallet",
-          variant: "default",
-        });
-
-        // Set success state immediately
-        setDeploymentStatus('success');
-        setTimeout(() => {
-          setActiveView('manage');
-          refreshContracts();
-          setIsCreatingContract(false);
-          setNewContractForm({ name: '', stablecoin: '' });
-          setSubscriptionTiers([]);
-          setNewTier({ name: '', price: '' });
-          setSelectedToken(SUPPORTED_TOKENS[0]);
-        }, 2000);
       }
       
     } catch (error) {
       console.error("Error creating subscription:", error);
+      // Update status for error
+      setDeploymentSteps(steps => steps.map(step => 
+        step.status === 'processing' ? { ...step, status: 'error' } : step
+      ));
       setDeploymentStatus('idle');
       setIsCreatingContract(false);
+      setError(true);
       toast({
         title: "Error",
         description: "Failed to create subscription. Please try again.",
         variant: "destructive",
+        duration: 2000
       });
     }
   };
@@ -211,11 +409,36 @@ export default function CreatorDashboard({ account, provider, client }: CreatorD
     setSubscriptionTiers(subscriptionTiers.filter((_, i) => i !== index));
   };
 
+  // Add this helper function to clean up the form reset
+  const resetForm = () => {
+    setNewContractForm({ name: '', stablecoin: '' });
+    setSubscriptionTiers([]);
+    setNewTier({ name: '', price: '' });
+    setSelectedToken(SUPPORTED_TOKENS[0]);
+    setDeploymentSteps([
+      { status: 'pending', message: 'Deploy subscription contract' },
+      { status: 'pending', message: 'Create subscription tiers' },
+    ]);
+    setProgress(0);
+    setCurrentStepIndex(0);
+  };
+
   if (isLoadingSubscriptions) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;
 
   return (
     <>
+      {showTransactionScreen && (
+        <TransactionScreen
+          steps={deploymentSteps}
+          progress={progress}
+          error={error}
+          onRetry={handleRetry}
+          onCancel={handleCancel}
+          isComplete={deploymentStatus === 'success'}
+        />
+      )}
+      
       {activeView === 'create' ? (
         <div className="h-screen p-6">
           <div className="max-w-2xl mx-auto">

@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { useContracts } from './provider/contractProvider';
 
 export default function Home() {
-  const { contextAccounts, accounts, walletConnected, client, provider } = useUpProvider();
+  const { contextAccounts, accounts, walletConnected, signer, provider, browserProvider } = useUpProvider();
   const [isDeploying, setIsDeploying] = useState(false);
   const { refreshContracts } = useContracts();
   const isGridOwner = contextAccounts[0]?.toLowerCase() === accounts[0]?.toLowerCase();
@@ -24,7 +24,7 @@ export default function Home() {
     try {
       setIsDeploying(true);
       
-      if (!client || !provider) {
+      if (!signer || !provider) {
         throw new Error("Client or provider not initialized");
       }
 
@@ -33,15 +33,15 @@ export default function Home() {
         account: accounts[0],
         from: accounts[0],
         data: LSP8.bytecode as `0x${string}`,
-        chain: client.chain
+        chain: provider.chainId
       };
 
       // Deploy the contract
-      const hash = await client.sendTransaction(deploymentTransaction);
+      const hash = await signer.sendTransaction(deploymentTransaction);
       console.log("Transaction hash:", hash);
 
       // Wait for deployment to complete
-      const receipt = await client.waitForTransactionReceipt({ hash });
+      const receipt = await provider.waitForTransactionReceipt({ hash });
       console.log("SubscriptionFactory Contract deployed to:", receipt.contractAddress);
 
       // Refresh the contracts list
@@ -93,7 +93,7 @@ export default function Home() {
 
   return (
     <div className="w-full h-full">
-      <CreatorDashboard account={accounts[0]} provider={provider} client={client} />
+      <CreatorDashboard account={accounts[0]} provider={provider} signer={signer} browserProvider={browserProvider} />
       {/*<Button 
         onClick={() => deploy()} 
         disabled={isDeploying}
